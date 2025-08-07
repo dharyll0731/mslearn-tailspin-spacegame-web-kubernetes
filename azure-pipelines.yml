@@ -1,7 +1,7 @@
-trigger: main
+trigger:
+- 'main'
 
 variables:
-  variables:
   buildConfiguration: 'Release'
   leaderboardRepository: 'leaderboard'
   webRepository: 'web'
@@ -9,75 +9,74 @@ variables:
   imagePullSecret: 'secret'
 
 stages:
-- task: Docker@2
-  displayName: 'Build and push the web image to container registry'
-  inputs:
-    command: buildAndPush
-    buildContext: $(Build.Repository.LocalPath)
-    repository: $(webRepository)
-    dockerfile: '$(Build.SourcesDirectory)/Tailspin.SpaceGame.Web/Dockerfile'
-    containerRegistry: 'Container Registry Connections'
-    tags: |
-      $(tag)
+- stage: 'Build'
+  displayName: 'Build and push'
+  jobs:  
+    - job: 'Build'
+      displayName: 'Build job'
+      pool:
+        vmImage: 'ubuntu-22.04'
+      steps:
+        - task: Docker@2
+          displayName: 'Build and push the image to container registry'
+          inputs:
+            command: buildAndPush
+            buildContext: $(Build.Repository.LocalPath)
+            repository: $(webRepository)
+            dockerfile: '$(Build.SourcesDirectory)/Tailspin.SpaceGame.Web/Dockerfile'
+            containerRegistry: 'Container Registry Connection'
+            tags: |
+              $(tag)
 
-- task: Docker@2
-  displayName: 'Build and push the leaderboard image to container registry'
-  inputs:
-    command: buildAndPush
-    buildContext: $(Build.Repository.LocalPath)
-    repository: $(leaderboardRepository)
-    dockerfile: '$(Build.SourcesDirectory)/Tailspin.SpaceGame.LeaderboardContainer/Dockerfile'
-    containerRegistry: 'Container Registry Connections'
-    tags: |
-      $(tag)
 
-- publish: '$(Build.SourcesDirectory)/manifests'
-  artifact: manifests
+        - task: Docker@2
+          displayName: 'Build and push the leaderboard image to container registry'
+          inputs:
+            command: buildAndPush
+            buildContext: $(Build.Repository.LocalPath)
+            repository: $(leaderboardRepository)
+            dockerfile: '$(Build.SourcesDirectory)/Tailspin.SpaceGame.LeaderboardContainer/Dockerfile'
+            containerRegistry: 'Container Registry Connections'
+            tags: |
+              $(tag)
+
+        - publish: '$(Build.SourcesDirectory)/manifests'
+          artifact: manifests
 
 - stage: 'Deploy'
   displayName: 'Deploy the containers'
   dependsOn: Build
   jobs:
-  - deployment: Deploy
-    displayName: Deploy
-    pool:
-      vmImage: 'ubuntu-22.04'
-    environment: 'kubernetesdev'
-    variables:
-    - group: Release
-    strategy:
-      runOnce:
-        deploy:
-          steps:
-           - download: current
-             artifact: manifests
-  
-- task: KubernetesManifest@1
-  displayName: Create imagePullSecret
-  inputs:
-    action: createSecret
-    connectionType: azureResourceManager
-    secretName: $(imagePullSecret)
-    dockerRegistryEndpoint: 'Container Registry Connections'
-    azureSubscriptionConnection: 'Kubernetes Cluster Connection'
-    azureResourceGroup: 'tailspin-space-game-rg'
-    kubernetesCluster: 'tailspinspacegame-17818'
-    namespace: 'default'
-  
-- task: KubernetesManifest@1
-  displayName: Deploy to Kubernetes cluster
-  inputs:
-    action: deploy
-    connectionType: azureResourceManager
-    azureSubscriptionConnection: 'Kubernetes Cluster Connection'
-    azureResourceGroup: 'tailspin-space-game-rg'
-    kubernetesCluster: 'tailspinspacegame-17818'
-    namespace: 'default'
-    manifests: |
-      $(Pipeline.Workspace)/manifests/deployment.yml
-      $(Pipeline.Workspace)/manifests/service.yml
-    imagePullSecrets: |
-      $(imagePullSecret)
-    containers: |
-      $(RegistryName)/$(webRepository):$(tag)
-      $(RegistryName)/$(leaderboardRepository):$(tag)
+    - deployment: Deploy
+      displayName: Deploy
+      pool:
+        vmImage: 'ubuntu-22.04'
+      environment: 'kubernetesdev'
+      variables:
+        - group: Release
+      strategy:
+        runOnce:
+          deploy:
+            steps:
+              - download: current
+                artifact: manifests
+
+              - task: KubernetesManifest@1
+                displayName: Deploy to Kubernetes cluster
+                inputs:
+                  action: deploy
+                  connectionType: azureResourceManager
+                  azureSubscriptionConnection: 'Kubernetes Cluster Connection'
+                  azureResourceGroup: 'tailspin-space-game-rg'
+                  kubernetesCluster: 'tailspinspacegame-17818'
+                  namespace: 'default'
+                  manifests: |
+                    $(Pipeline.Workspace)/manifests/deployment.yml
+                    $(Pipeline.Workspace)/manifests/service.yml
+                  imagePullSecrets: |
+                    $(imagePullSecret)
+                  containers: |
+                    $(RegistryName)/$(webRepository):$(tag)
+                    $(RegistryName)/$(leaderboardRepository):$(tag)
+
+ 
