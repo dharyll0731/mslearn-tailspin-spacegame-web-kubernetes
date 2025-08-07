@@ -1,8 +1,10 @@
-FROM mcr.microsoft.com/dotnet/aspnet:6.0 AS base
+# Use .NET 8.0 ASP.NET runtime image for final stage
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
 WORKDIR /app
 EXPOSE 80
 
-FROM mcr.microsoft.com/dotnet/sdk:6.0 AS build
+# Use .NET 8.0 SDK image for build stage
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 COPY ["Tailspin.SpaceGame.LeaderboardContainer/Tailspin.SpaceGame.LeaderboardContainer.csproj", "Tailspin.SpaceGame.LeaderboardContainer/"]
 
